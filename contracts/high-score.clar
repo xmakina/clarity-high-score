@@ -5,9 +5,9 @@
 
 (define-public (submit-score (newScore int))
     (begin
-        (if (> newScore (var-get score)) (update-score newScore) (ok (var-get score)))))
+        (if (> newScore (var-get score)) (update-score newScore) (get-score))))
 
 (define-private (update-score (newScore int))
     (begin
         (var-set score newScore)
-        (ok (var-get score))))
+        (get-score)))
