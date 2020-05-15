@@ -5,70 +5,77 @@ import {
   Result,
 } from "@blockstack/clarity";
 import { assert } from "chai";
+
+const unwrapTuple = function(tuple){
+  const nameMatch = tuple.match(/name 0x(\w+)/)[1];
+  const name = Buffer.from(nameMatch, "hex").toString();
+  const scoreMatch = tuple.match(/score\s(\d+)/)[1];
+  const score = parseInt(scoreMatch);
+  return {name, score};
+}
+
+const getHighScore = async (client: Client) => {
+  const query = client.createQuery({
+    method: { name: "get-high-score", args: [] },
+  });
+  const receipt = await client.submitQuery(query);
+  const result = Result.unwrap(receipt);
+  const tuple = unwrapTuple(result);
+  return tuple;
+};
+
+const getMyScore = async (client: Client) => {
+  const query = client.createQuery({
+    method: { name: "get-my-score", args: [] },
+  });
+  const receipt = await client.submitQuery(query);
+  const result = Result.unwrap(receipt);
+  return result;
+};
+
+const execMethod = async (client: Client, signature: string, method: string, args: string[]) => {
+  const tx = client.createTransaction({
+    method: {
+      name: method,
+      args: args,
+    },
+  });
+  await tx.sign(signature);
+  const receipt = await client.submitTransaction(tx);
+  return receipt;
+};
+
 describe("high score contract test suite", () => {
-  let highScoreClient: Client;
+  const gameSignature = "SP1FXTNRCXQW7CNKKRXZQZPZPKKVPAZS6JYX25YP5";
+  const playerOneSignature = "SP2AYGM74FNMJT9M197EJSB49P88NRH0ES1KZD1BX";
+  const playerTwoSignature = "SP3T8WFCWHZNQ97SBYQH8T6ZJ1VWDMD46Y3VZ3JNJ";
+  
+  let gameClient: Client;
+  let playerOneClient: Client;
+  let playerTwoClient: Client;
   let provider: Provider;
+  
   before(async () => {
     provider = await ProviderRegistry.createProvider();
-    highScoreClient = new Client(
-      "ST3WCQ6S0DFT7YHF53M8JPKGDS1N1GSSR91677XF1.high-score",
-      "high-score",
-      provider
-    );
+    gameClient = new Client(gameSignature + ".high-score", "high-score", provider);
+    playerOneClient = new Client(playerOneSignature + ".high-score", "high-score", provider);
+    playerTwoClient = new Client(playerTwoSignature + ".high-score", "high-score", provider);
   });
+
   it("should have a valid syntax", async () => {
-    await highScoreClient.checkContract();
+    await gameClient.checkContract();
   });
+
   describe("deploying an instance of the contract", () => {
-    const getscore = async () => {
-      const query = highScoreClient.createQuery({
-        method: { name: "get-score", args: [] },
-      });
-      const receipt = await highScoreClient.submitQuery(query);
-      const result = Result.unwrapInt(receipt);
-      return result;
-    };
-    const execMethod = async (method: string, args: string[]) => {
-      const tx = highScoreClient.createTransaction({
-        method: {
-          name: method,
-          args: args,
-        },
-      });
-      await tx.sign("ST3WCQ6S0DFT7YHF53M8JPKGDS1N1GSSR91677XF1");
-      const receipt = await highScoreClient.submitTransaction(tx);
-      return receipt;
-    };
-
     before(async () => {
-      await highScoreClient.deployContract();
-    });
-    it("should have a starting score", async () => {
-      const score = await getscore();
-      assert.equal(25, score);
+      await gameClient.deployContract();
     });
 
-    describe("submitting high score", () => {
-      it("should allow new score", async () => {
-        const receipt = await execMethod("submit-score", ["100"]);
-        assert.isTrue(receipt.success);
-      });
-      it("should record the new score", async () => {
-        const score = await getscore();
-        assert.equal(score, 100);
-      });
-    });
-
-    describe("submitting a low score", () => {
-      it("should allow the submission", async () => {
-        const receipt = await execMethod("submit-score", ["50"]);
-        assert.isTrue(receipt.success);
-      });
-      it("should still return the original high score", async () => {
-        const score = await getscore();
-        assert.equal(score, 100);
-      });
-    });
+    it("starting high score is zero", async () => {
+      const topScore = await getHighScore(gameClient);
+      assert.equal(topScore.score, 0)
+      assert.equal(topScore.name, "nobody")
+    });    
   });
   after(async () => {
     await provider.close();
