@@ -1,0 +1,30 @@
+{
+  "name": "clarity-high-score",
+  "version": "0.0.0",
+  "author": {
+    "name": "Alex Addams",
+    "email": "me@xmakina.co.uk"
+  },
+  "repository": "https://github.com/xmakina/clarity-high-score.git",
+  "private": false,
+  "engines": {
+    "node": ">=10"
+  },
+  "scripts": {
+    "test": "mocha",
+    "test:watch": "mocha --watch"
+  },
+  "devDependencies": {
+    "@types/node": "^10",
+    "typescript": "^3.5.2",
+    "ts-node": "^8.2.0",
+    "chai": "^4.2.0",
+    "@types/chai": "^4.1.7",
+    "mocha": "^6.1.4",
+    "@types/mocha": "^5.2.7"
+  },
+  "dependencies": {
+    "@blockstack/clarity": "^0.1.13",
+    "@blockstack/clarity-native-bin": "^0.1.13"
+  }
+}
