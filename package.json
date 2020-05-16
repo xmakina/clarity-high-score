@@ -24,7 +24,7 @@
     "@types/mocha": "^5.2.7"
   },
   "dependencies": {
-    "@blockstack/clarity": "^0.1.13",
-    "@blockstack/clarity-native-bin": "^0.1.13"
+    "@blockstack/clarity": "^0.1.16",
+    "@blockstack/clarity-native-bin": "^0.1.16"
   }
 }
