@@ -2,137 +2,200 @@ import {
   Client,
   Provider,
   ProviderRegistry,
-  Result,
+  Receipt,
 } from "@blockstack/clarity";
 import { assert } from "chai";
-
-const unwrapTuple = function(tuple){
-  const nameMatch = tuple.match(/name 0x(\w+)/)[1];
-  const name = Buffer.from(nameMatch, "hex").toString();
-  const scoreMatch = tuple.match(/score\s(\d+)/)[1];
-  const score = parseInt(scoreMatch);
-  return {name, score};
-}
-
-const getHighScore = async (client: Client) => {
-  const query = client.createQuery({
-    method: { name: "get-high-score", args: [] },
-  });
-  const receipt = await client.submitQuery(query);
-  const result = Result.unwrap(receipt);
-  const tuple = unwrapTuple(result);
-  return tuple;
-};
-
-const getBestFor = async (client: Client, signature: string) => {
-  const query = client.createQuery({
-    method: { name: "get-best-for", args: ["'" + signature] },
-  });
-  const receipt = await client.submitQuery(query);
-  const result = Result.unwrap(receipt);
-  const tuple = unwrapTuple(result);
-  return tuple;
-};
-
-const execMethod = async (client: Client, signature: string, method: string, args: string[]) => {
-  const tx = client.createTransaction({
-    method: {
-      name: method,
-      args: args,
-    },
-  });
-  await tx.sign(signature);
-  const receipt = await client.submitTransaction(tx);
-  return receipt;
-};
+import { ScoreBoardRow, getHighScore, getBestFor, execMethod } from "./helper-functions"
 
 describe("high score contract test suite", () => {
   const gameSignature = "SP1FXTNRCXQW7CNKKRXZQZPZPKKVPAZS6JYX25YP5";
   const playerOneSignature = "SP2AYGM74FNMJT9M197EJSB49P88NRH0ES1KZD1BX";
   const playerTwoSignature = "SP3T8WFCWHZNQ97SBYQH8T6ZJ1VWDMD46Y3VZ3JNJ";
-  
-  let gameClient: Client;
-  let playerOneClient: Client;
-  let playerTwoClient: Client;
+
   let provider: Provider;
-  
+  let client: Client;
+
   before(async () => {
     provider = await ProviderRegistry.createProvider();
-    gameClient = new Client(gameSignature + ".high-score", "high-score", provider);
-    playerOneClient = new Client(gameSignature + ".high-score", "high-score", provider);
-    playerTwoClient = new Client(gameSignature + ".high-score", "high-score", provider);
+    client = new Client(gameSignature + ".high-score", "high-score", provider);
   });
 
-  it("should have a valid syntax", async () => {
-    await gameClient.checkContract();
+  it("has a valid syntax", async () => {
+    await client.checkContract();
+    await client.deployContract();
   });
 
-  describe("deploying an instance of the contract", () => {
+  describe("when the contract is new", () => {
+    let highScore: ScoreBoardRow;
+
     before(async () => {
-      await gameClient.deployContract();
+      highScore = await getHighScore(client);
+    })
+
+    it("has a starting high score of zero", async () => {
+      assert.equal(highScore.score, 0)
     });
 
-    it("starting high score is zero", async () => {
-      const highScore = await getHighScore(gameClient);
-      assert.equal(highScore.score, 0)
+    it("has a starting name of nobody", async () => {
       assert.equal(highScore.name, "nobody")
     });
+  });
 
-    describe("players can submit a score", async () => {
-      describe("when it is the first score submitted", async () => {
-        it("adds the player entry", async () => {
-          const submission = await execMethod(playerOneClient, playerOneSignature, "submit-score", ["\"alice\"", "50"]);
-          assert.equal(submission.success, true);
-  
-          const bestScore = await getBestFor(playerOneClient, playerOneSignature);
+  describe("when player one submits a score of 50 with the name alice", () => {
+    it("completes the execution", async () => {
+      const submission = await execMethod(client, playerOneSignature, "submit-score", ["\"alice\"", "50"]);
+      assert.equal(submission.success, true);
+    })
+
+    describe("when getting player one's best score", () => {
+      let bestScore: ScoreBoardRow;
+      before(async () => {
+        bestScore = await getBestFor(client, playerOneSignature);
+      })
+      it("is 50", () => {
+        assert.equal(bestScore.score, 50);
+      })
+      it("is using the name alice", () => {
+        assert.equal(bestScore.name, "alice");
+      })
+    })
+
+    describe("when getting current high score", () => {
+      let highScore: ScoreBoardRow;
+      before(async () => {
+        highScore = await getHighScore(client);
+      })
+      it("is 50", () => {
+        assert.equal(highScore.score, 50);
+      })
+      it("belongs to alice", () => {
+        assert.equal(highScore.name, "alice");
+      })
+    })
+
+    describe("when player one submits a lower score", () => {
+      let submission: Receipt;
+      before(async () => {
+        submission = await execMethod(client, playerOneSignature, "submit-score", ["\"alice\"", "25"]);
+      })
+
+      it("completes the execution", async () => {
+        assert.equal(submission.success, true);
+      })
+
+      describe("when getting player one's best score", () => {
+        let bestScore: ScoreBoardRow;
+        before(async () => {
+          bestScore = await getBestFor(client, playerOneSignature);
+        })
+        it("is still 50", () => {
           assert.equal(bestScore.score, 50);
-          assert.equal(bestScore.name, "alice");
-        })
-
-        it("updates the high score", async () => {
-          const highScore = await getHighScore(playerOneClient);
-          assert.equal(highScore.score, 50);
-          assert.equal(highScore.name, "alice");
-        })
-
-        describe("when more scores are added", async () => {
-          it("does not update if a lower score is submittted", async() => {
-            const submission = await execMethod(playerOneClient, playerOneSignature, "submit-score", ["\"alice\"", "25"]);
-            assert.equal(submission.success, true);
-    
-            const bestScore = await getBestFor(playerOneClient, playerOneSignature);
-            assert.equal(bestScore.score, 50);
-            assert.equal(bestScore.name, "alice");
-
-            const highScore = await getHighScore(playerOneClient);
-            assert.equal(highScore.score, 50);
-            assert.equal(highScore.name, "alice");
-          })
-    
-          it("does update if a higher score is submittted", async() => {
-            await execMethod(playerOneClient, playerOneSignature, "submit-score", ["\"alice\"", "100"]);
-            await execMethod(playerTwoClient, playerTwoSignature, "submit-score", ["\"bob\"", "200"]);
-                
-            const aliceBestScore = await getBestFor(playerOneClient, playerOneSignature);
-            assert.equal(aliceBestScore.score, 100);
-            assert.equal(aliceBestScore.name, "alice");
-            
-            const highScore = await getHighScore(playerOneClient);
-            assert.equal(highScore.score, 200);
-            assert.equal(highScore.name, "bob");
-          })
-
-          it("updates the name when a high score is submitted", async () => {
-            await execMethod(playerTwoClient, playerTwoSignature, "submit-score", ["\"brenda\"", "200"]);
-
-            const highScore = await getHighScore(playerOneClient);
-            assert.equal(highScore.score, 200);
-            assert.equal(highScore.name, "brenda");
-          })
         })
       })
     })
-  });
+  })
+
+  describe("when more scores are added", () => {
+    describe("when player two submits an identical high score with the name bob", () => {
+      it("completes the execution", async () => {
+        const submission = await execMethod(client, playerTwoSignature, "submit-score", ["\"bob\"", "50"]);
+        assert.equal(submission.success, true);
+      })
+
+      describe("when getting player two's best score", () => {
+        let bestScore: ScoreBoardRow;
+        before(async () => {
+          bestScore = await getBestFor(client, playerTwoSignature);
+        })
+        it("is 50", () => {
+          assert.equal(bestScore.score, 50);
+        })
+        it("is using the name bob", () => {
+          assert.equal(bestScore.name, "bob");
+        })
+      })
+
+      describe("when getting current high score", () => {
+        let highScore: ScoreBoardRow;
+        before(async () => {
+          highScore = await getHighScore(client);
+        })
+        it("is 50", () => {
+          assert.equal(highScore.score, 50);
+        })
+        it("belongs to alice", () => {
+          assert.equal(highScore.name, "alice");
+        })
+      })
+    })
+
+    describe("when player two submits a better high score with the name bob", () => {
+      it("completes the execution", async () => {
+        const submission = await execMethod(client, playerTwoSignature, "submit-score", ["\"bob\"", "100"]);
+        assert.equal(submission.success, true);
+      })
+
+      describe("when getting player two's best score", () => {
+        let bestScore: ScoreBoardRow;
+        before(async () => {
+          bestScore = await getBestFor(client, playerTwoSignature);
+        })
+        it("is 100", () => {
+          assert.equal(bestScore.score, 100);
+        })
+        it("is using the name bob", () => {
+          assert.equal(bestScore.name, "bob");
+        })
+      })
+
+      describe("when getting current high score", () => {
+        let highScore: ScoreBoardRow;
+        before(async () => {
+          highScore = await getHighScore(client);
+        })
+        it("is 100", () => {
+          assert.equal(highScore.score, 100);
+        })
+        it("belongs to bob", () => {
+          assert.equal(highScore.name, "bob");
+        })
+      })
+    })
+  })
+
+  describe("when player two changes their name to brenda", () => {
+    it("completes the execution", async () => {
+      const submission = await execMethod(client, playerTwoSignature, "change-name", ["\"brenda\""]);
+      assert.equal(submission.success, true);
+    })
+
+    describe("when getting player two's best score", () => {
+      let bestScore: ScoreBoardRow;
+      before(async () => {
+        bestScore = await getBestFor(client, playerTwoSignature);
+      })
+      it("is 100", () => {
+        assert.equal(bestScore.score, 100);
+      })
+      it("is using the name brenda", () => {
+        assert.equal(bestScore.name, "brenda");
+      })
+    })
+
+    describe("when getting current high score", () => {
+      let highScore: ScoreBoardRow;
+      before(async () => {
+        highScore = await getHighScore(client);
+      })
+      it("is 100", () => {
+        assert.equal(highScore.score, 100);
+      })
+      it("belongs to brenda", () => {
+        assert.equal(highScore.name, "brenda");
+      })
+    })
+  })
+
   after(async () => {
     await provider.close();
   });
