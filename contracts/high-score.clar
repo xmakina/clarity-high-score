@@ -1,6 +1,6 @@
 (define-map scores ((player principal)) ((name (buff 40)) (score int))) ;; A list of everyone's best score
 (define-data-var highScorePrincipal principal 'ST3WCQ6S0DFT7YHF53M8JPKGDS1N1GSSR91677XF1)   ;;The principal of the best score
-;; We need to store the best score, because that is easier than sorting the map every time a new player submits a score
+;; We store the current high score, because that is easier than sorting the map every time a new player submits a score
 
 (define-private (get-score-for (player principal))
     (default-to 0 (get score (map-get? scores (tuple (player player)))))
@@ -18,11 +18,11 @@
             (var-get highScorePrincipal)
         ))
         (map-set scores (tuple (player player)) ((name playerName) (score newScore)))
-        (get-result-for player)
+        (get-best-for player)
     )
 )
 
-(define-public (get-result-for (player principal))
+(define-public (get-best-for (player principal))
     (ok (tuple
         (score (get-score-for player))
         (name (get-name-for player))
@@ -31,7 +31,7 @@
 
 (define-public (get-high-score)
     (begin 
-        (ok (get-result-for (var-get highScorePrincipal)))
+        (ok (get-best-for (var-get highScorePrincipal)))
     )
 )
 
@@ -40,7 +40,7 @@
         (if
             (> newScore (get-score-for tx-sender))
             (update-result-for tx-sender playerName newScore)
-            (get-result-for tx-sender)
+            (get-best-for tx-sender)
         )
     )
 )

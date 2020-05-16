@@ -24,9 +24,9 @@ const getHighScore = async (client: Client) => {
   return tuple;
 };
 
-const getResultFor = async (client: Client, signature: string) => {
+const getBestFor = async (client: Client, signature: string) => {
   const query = client.createQuery({
-    method: { name: "get-result-for", args: ["'" + signature] },
+    method: { name: "get-best-for", args: ["'" + signature] },
   });
   const receipt = await client.submitQuery(query);
   const result = Result.unwrap(receipt);
@@ -84,7 +84,7 @@ describe("high score contract test suite", () => {
           const submission = await execMethod(playerOneClient, playerOneSignature, "submit-score", ["\"alice\"", "50"]);
           assert.equal(submission.success, true);
   
-          const bestScore = await getResultFor(playerOneClient, playerOneSignature);
+          const bestScore = await getBestFor(playerOneClient, playerOneSignature);
           assert.equal(bestScore.score, 50);
           assert.equal(bestScore.name, "alice");
         })
@@ -100,7 +100,7 @@ describe("high score contract test suite", () => {
             const submission = await execMethod(playerOneClient, playerOneSignature, "submit-score", ["\"alice\"", "25"]);
             assert.equal(submission.success, true);
     
-            const bestScore = await getResultFor(playerOneClient, playerOneSignature);
+            const bestScore = await getBestFor(playerOneClient, playerOneSignature);
             assert.equal(bestScore.score, 50);
             assert.equal(bestScore.name, "alice");
 
@@ -113,13 +113,21 @@ describe("high score contract test suite", () => {
             await execMethod(playerOneClient, playerOneSignature, "submit-score", ["\"alice\"", "100"]);
             await execMethod(playerTwoClient, playerTwoSignature, "submit-score", ["\"bob\"", "200"]);
                 
-            const aliceBestScore = await getResultFor(playerOneClient, playerOneSignature);
+            const aliceBestScore = await getBestFor(playerOneClient, playerOneSignature);
             assert.equal(aliceBestScore.score, 100);
             assert.equal(aliceBestScore.name, "alice");
             
             const highScore = await getHighScore(playerOneClient);
             assert.equal(highScore.score, 200);
             assert.equal(highScore.name, "bob");
+          })
+
+          it("updates the name when a high score is submitted", async () => {
+            await execMethod(playerTwoClient, playerTwoSignature, "submit-score", ["\"brenda\"", "200"]);
+
+            const highScore = await getHighScore(playerOneClient);
+            assert.equal(highScore.score, 200);
+            assert.equal(highScore.name, "brenda");
           })
         })
       })
