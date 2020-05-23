@@ -9,7 +9,7 @@
 ;; private functions allow us to encapsulate complex functionality behind a function call
 ;; this makes the rest of our code much easier to read, especially as the number of () grows
 
-;; Clarity Bug(?): Putting these private functions after the get-best-for causes them to
+;; https://github.com/blockstack/stacks-blockchain/issues/1625: Putting these private functions after the get-best-for causes them to
 ;; be unresolved "use of unresolved function 'get-name-for'"
 (define-private (get-score-for (player principal))
     (default-to 0 (get score (map-get? scores (tuple (player player)))))
